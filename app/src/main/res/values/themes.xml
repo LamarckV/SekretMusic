@@ -6,4 +6,13 @@
     </style>
 
     <style name="Theme.Lama" parent="Base.Theme.Lama" />
+
+    <style name="PlayerBottomSheetDialog" parent="Theme.Design.BottomSheetDialog">
+        <item name="android:windowIsFloating">false</item>
+        <item name="bottomSheetStyle">@style/PlayerBottomSheetStyle</item>
+    </style>
+
+    <style name="PlayerBottomSheetStyle" parent="Widget.Design.BottomSheet.Modal">
+        <item name="android:background">@android:color/transparent</item>
+    </style>
 </resources>
