@@ -20,15 +20,28 @@ public class SongAdapter extends RecyclerView.Adapter<SongAdapter.SongViewHolder
     private List<Song> songList;
     private List<Song> songListFull;
     private OnSongClickListener listener;
+    private boolean isSelectionMode = false;
+    private List<Song> selectedSongs = new ArrayList<>();
 
     public interface OnSongClickListener {
         void onSongClick(Song song, int position);
+        default void onSongLongClick(Song song, int position) {}
     }
 
     public SongAdapter(List<Song> songList, OnSongClickListener listener) {
         this.songList = songList;
         this.songListFull = new ArrayList<>(songList);
         this.listener = listener;
+    }
+
+    public void setSelectionMode(boolean selectionMode) {
+        isSelectionMode = selectionMode;
+        selectedSongs.clear();
+        notifyDataSetChanged();
+    }
+
+    public List<Song> getSelectedSongs() {
+        return selectedSongs;
     }
 
     @NonNull
@@ -51,7 +64,29 @@ public class SongAdapter extends RecyclerView.Adapter<SongAdapter.SongViewHolder
                 .transition(DrawableTransitionOptions.withCrossFade())
                 .into(holder.imgAlbum);
 
-        holder.itemView.setOnClickListener(v -> listener.onSongClick(song, position));
+        if (isSelectionMode) {
+            holder.itemView.setBackgroundColor(selectedSongs.contains(song) ? 0x401DB954 : 0x00000000);
+        } else {
+            holder.itemView.setBackgroundColor(0x00000000);
+        }
+
+        holder.itemView.setOnClickListener(v -> {
+            if (isSelectionMode) {
+                if (selectedSongs.contains(song)) selectedSongs.remove(song);
+                else selectedSongs.add(song);
+                notifyItemChanged(position);
+            } else {
+                listener.onSongClick(song, position);
+            }
+        });
+
+        holder.itemView.setOnLongClickListener(v -> {
+            if (!isSelectionMode) {
+                listener.onSongLongClick(song, position);
+                return true;
+            }
+            return false;
+        });
     }
 
     @Override

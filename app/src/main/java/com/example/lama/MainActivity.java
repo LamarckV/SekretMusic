@@ -15,6 +15,7 @@ import android.provider.MediaStore;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.View;
+import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ImageView;
@@ -174,10 +175,18 @@ public class MainActivity extends AppCompatActivity {
 
     private void loadSongs() {
         fetchSongs();
-        songAdapter = new SongAdapter(new ArrayList<>(songList), (song, position) -> {
-            currentSongIndex = songList.indexOf(song);
-            playSong(song);
-            showPlayerModal();
+        songAdapter = new SongAdapter(new ArrayList<>(songList), new SongAdapter.OnSongClickListener() {
+            @Override
+            public void onSongClick(Song song, int position) {
+                currentSongIndex = songList.indexOf(song);
+                playSong(song);
+                showPlayerModal();
+            }
+
+            @Override
+            public void onSongLongClick(Song song, int position) {
+                showAddToPlaylistDialog(song);
+            }
         });
         recyclerView.setAdapter(songAdapter);
     }
@@ -263,16 +272,72 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void showCreatePlaylistDialog() {
+        BottomSheetDialog dialog = new BottomSheetDialog(this, R.style.PlayerBottomSheetDialog);
         View view = getLayoutInflater().inflate(R.layout.playlist_dialog, null);
+        dialog.setContentView(view);
+
         EditText editName = view.findViewById(R.id.editPlaylistName);
+        Button btnCreate = view.findViewById(R.id.btnCreatePlaylist);
+
+        btnCreate.setOnClickListener(v -> {
+            String name = editName.getText().toString();
+            if (!name.isEmpty()) {
+                Playlist newPlaylist = new Playlist(name);
+                showSongSelectionDialog(newPlaylist, dialog);
+            } else {
+                Toast.makeText(this, "Insira um nome", Toast.LENGTH_SHORT).show();
+            }
+        });
+        dialog.show();
+    }
+
+    private void showSongSelectionDialog(Playlist playlist, BottomSheetDialog creationDialog) {
+        BottomSheetDialog selectionDialog = new BottomSheetDialog(this, R.style.PlayerBottomSheetDialog);
+        View view = getLayoutInflater().inflate(R.layout.modal_song_selection, null);
+        selectionDialog.setContentView(view);
+
+        RecyclerView rv = view.findViewById(R.id.rvSongSelection);
+        rv.setLayoutManager(new LinearLayoutManager(this));
+        
+        SongAdapter selectionAdapter = new SongAdapter(new ArrayList<>(songList), new SongAdapter.OnSongClickListener() {
+            @Override public void onSongClick(Song song, int position) {}
+        });
+        selectionAdapter.setSelectionMode(true);
+        rv.setAdapter(selectionAdapter);
+
+        view.findViewById(R.id.btnConfirmSelection).setOnClickListener(v -> {
+            List<Song> selected = selectionAdapter.getSelectedSongs();
+            for (Song s : selected) playlist.addSong(s);
+            playlists.add(playlist);
+            if (playlistAdapter != null) playlistAdapter.notifyDataSetChanged();
+            selectionDialog.dismiss();
+            creationDialog.dismiss();
+            Toast.makeText(this, "Playlist criada!", Toast.LENGTH_SHORT).show();
+        });
+
+        selectionDialog.show();
+    }
+
+    private void showAddToPlaylistDialog(Song song) {
+        if (playlists.isEmpty()) {
+            new AlertDialog.Builder(this)
+                .setTitle("Nenhuma playlist")
+                .setMessage("Deseja criar uma nova playlist?")
+                .setPositiveButton("Sim", (dialog, which) -> showCreatePlaylistDialog())
+                .setNegativeButton("Não", null)
+                .show();
+            return;
+        }
+
+        String[] names = new String[playlists.size()];
+        for (int i = 0; i < playlists.size(); i++) names[i] = playlists.get(i).getName();
+
         new AlertDialog.Builder(this)
-            .setView(view)
-            .setPositiveButton("Criar", (dialog, which) -> {
-                String name = editName.getText().toString();
-                if (!name.isEmpty()) {
-                    playlists.add(new Playlist(name));
-                    if (playlistAdapter != null) playlistAdapter.notifyDataSetChanged();
-                }
+            .setTitle("Adicionar à playlist")
+            .setItems(names, (dialog, which) -> {
+                playlists.get(which).addSong(song);
+                if (playlistAdapter != null) playlistAdapter.notifyDataSetChanged();
+                Toast.makeText(this, "Adicionado a " + names[which], Toast.LENGTH_SHORT).show();
             }).show();
     }
 
@@ -288,6 +353,7 @@ public class MainActivity extends AppCompatActivity {
         SeekBar mSeekBar = view.findViewById(R.id.modalSeekBar);
         ImageButton mShuffle = view.findViewById(R.id.btnShuffle);
         ImageButton mRepeat = view.findViewById(R.id.btnRepeat);
+        ImageButton btnQueue = view.findViewById(R.id.btnQueue);
 
         updatePlayerModalUI(mTitle, mArtist, mArt, mPlayPause, mSeekBar, mShuffle, mRepeat);
 
@@ -297,6 +363,7 @@ public class MainActivity extends AppCompatActivity {
         
         mShuffle.setOnClickListener(v -> { isShuffle = !isShuffle; mShuffle.setColorFilter(isShuffle ? 0xFF1DB954 : 0xFFB3B3B3); });
         mRepeat.setOnClickListener(v -> { repeatMode = (repeatMode + 1) % 3; mRepeat.setColorFilter(repeatMode > 0 ? 0xFF1DB954 : 0xFFB3B3B3); });
+        btnQueue.setOnClickListener(v -> showAddToPlaylistDialog(songList.get(currentSongIndex)));
 
         updateSeekBar = new Runnable() {
             @Override public void run() {
