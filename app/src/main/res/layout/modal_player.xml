@@ -122,8 +122,8 @@
     <!-- Playback Controls -->
     <LinearLayout
         android:id="@+id/controlsLayout"
-        android:layout_width="329dp"
-        android:layout_height="80dp"
+        android:layout_width="328dp"
+        android:layout_height="79dp"
         android:layout_marginTop="16dp"
         android:gravity="center"
         android:orientation="horizontal"
@@ -134,8 +134,8 @@
 
         <ImageButton
             android:id="@+id/btnShuffle"
-            android:layout_width="38dp"
-            android:layout_height="42dp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:padding="10dp"
             android:scaleType="fitCenter"
@@ -144,8 +144,8 @@
 
         <ImageButton
             android:id="@+id/modalBtnPrev"
-            android:layout_width="64dp"
-            android:layout_height="64dp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             android:layout_marginHorizontal="8dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:padding="12dp"
@@ -165,8 +165,8 @@
 
         <ImageButton
             android:id="@+id/modalBtnNext"
-            android:layout_width="64dp"
-            android:layout_height="64dp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             android:layout_marginHorizontal="8dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:padding="12dp"
@@ -176,8 +176,8 @@
 
         <ImageButton
             android:id="@+id/btnRepeat"
-            android:layout_width="38dp"
-            android:layout_height="48dp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:padding="10dp"
             android:scaleType="fitCenter"
