@@ -2,6 +2,7 @@ package com.example.lama;
 
 import android.Manifest;
 import android.content.ContentResolver;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
@@ -25,6 +26,8 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
@@ -58,6 +61,7 @@ public class MainActivity extends AppCompatActivity {
     
     private final MediaPlayer mediaPlayer = new MediaPlayer();
     private int currentSongIndex = -1;
+    private List<Song> currentQueue = new ArrayList<>();
     private final Handler handler = new Handler(Looper.getMainLooper());
     private Runnable updateSeekBar;
 
@@ -72,6 +76,34 @@ public class MainActivity extends AppCompatActivity {
     private SharedPreferences prefs;
     private boolean isShuffle = false;
     private int repeatMode = 0; // 0: No repeat, 1: Repeat song, 2: Repeat all
+
+    private Playlist currentEditingPlaylist;
+    private ImageView currentEditingCoverView;
+    private final ActivityResultLauncher<Intent> imagePickerLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                    Uri imageUri = result.getData().getData();
+                    if (currentEditingPlaylist != null && imageUri != null) {
+                        // Persistir a permissão de acesso à URI se necessário (para URIs de conteúdo)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                            final int takeFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION;
+                            try {
+                                getContentResolver().takePersistableUriPermission(imageUri, takeFlags);
+                            } catch (SecurityException e) {
+                                // Ignorar se não for possível persistir
+                            }
+                        }
+                        
+                        currentEditingPlaylist.setCoverUri(imageUri.toString());
+                        if (currentEditingCoverView != null) {
+                            Glide.with(this).load(imageUri).placeholder(android.R.drawable.ic_menu_agenda).into(currentEditingCoverView);
+                        }
+                        if (playlistAdapter != null) playlistAdapter.notifyDataSetChanged();
+                    }
+                }
+            }
+    );
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -110,7 +142,7 @@ public class MainActivity extends AppCompatActivity {
         navPlaylists.setOnClickListener(v -> showPlaylists());
         navLibrary.setOnClickListener(v -> showLibrary());
 
-        findViewById(R.id.btnFilter).setOnClickListener(v -> showFilterModal());
+        findViewById(R.id.btnFilter).setOnClickListener(v -> showFilterModal(songList, songAdapter));
         
         EditText searchEditText = findViewById(R.id.searchEditText);
         searchEditText.addTextChangedListener(new TextWatcher() {
@@ -141,7 +173,7 @@ public class MainActivity extends AppCompatActivity {
         if (playlistAdapter == null) {
             playlistAdapter = new PlaylistAdapter(playlists, new PlaylistAdapter.OnPlaylistClickListener() {
                 @Override
-                public void onPlaylistClick(Playlist playlist) { /* Show playlist songs */ }
+                public void onPlaylistClick(Playlist playlist) { showPlaylistDetails(playlist); }
                 @Override
                 public void onCreatePlaylistClick() { showCreatePlaylistDialog(); }
             });
@@ -178,7 +210,8 @@ public class MainActivity extends AppCompatActivity {
         songAdapter = new SongAdapter(new ArrayList<>(songList), new SongAdapter.OnSongClickListener() {
             @Override
             public void onSongClick(Song song, int position) {
-                currentSongIndex = songList.indexOf(song);
+                currentQueue = new ArrayList<>(songList);
+                currentSongIndex = position;
                 playSong(song);
                 showPlayerModal();
             }
@@ -230,7 +263,7 @@ public class MainActivity extends AppCompatActivity {
             miniPlayer.setVisibility(View.VISIBLE);
 
             mediaPlayer.setOnCompletionListener(mp -> {
-                if (repeatMode == 1) playSong(songList.get(currentSongIndex));
+                if (repeatMode == 1) playSong(currentQueue.get(currentSongIndex));
                 else playNext();
             });
         } catch (IOException e) { e.printStackTrace(); }
@@ -247,27 +280,27 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void playNext() {
-        if (songList.isEmpty()) return;
-        if (isShuffle) currentSongIndex = (int) (Math.random() * songList.size());
-        else currentSongIndex = (currentSongIndex + 1) % songList.size();
-        playSong(songList.get(currentSongIndex));
+        if (currentQueue.isEmpty()) return;
+        if (isShuffle) currentSongIndex = (int) (Math.random() * currentQueue.size());
+        else currentSongIndex = (currentSongIndex + 1) % currentQueue.size();
+        playSong(currentQueue.get(currentSongIndex));
     }
 
     private void playPrevious() {
-        if (songList.isEmpty()) return;
-        currentSongIndex = (currentSongIndex - 1 + songList.size()) % songList.size();
-        playSong(songList.get(currentSongIndex));
+        if (currentQueue.isEmpty()) return;
+        currentSongIndex = (currentSongIndex - 1 + currentQueue.size()) % currentQueue.size();
+        playSong(currentQueue.get(currentSongIndex));
     }
 
-    private void showFilterModal() {
+    private void showFilterModal(List<Song> list, SongAdapter adapter) {
         String[] options = {"Ordem Alfabética", "Mais Recentes", "Por Artista"};
         new AlertDialog.Builder(this)
             .setTitle("Filtrar por")
             .setItems(options, (dialog, which) -> {
-                if (which == 0) Collections.sort(songList, (s1, s2) -> s1.getTitle().compareToIgnoreCase(s2.getTitle()));
-                else if (which == 1) Collections.sort(songList, (s1, s2) -> Long.compare(s2.getDateAdded(), s1.getDateAdded()));
-                else Collections.sort(songList, (s1, s2) -> s1.getArtist().compareToIgnoreCase(s2.getArtist()));
-                songAdapter.updateList(new ArrayList<>(songList));
+                if (which == 0) Collections.sort(list, (s1, s2) -> s1.getTitle().compareToIgnoreCase(s2.getTitle()));
+                else if (which == 1) Collections.sort(list, (s1, s2) -> Long.compare(s2.getDateAdded(), s1.getDateAdded()));
+                else Collections.sort(list, (s1, s2) -> s1.getArtist().compareToIgnoreCase(s2.getArtist()));
+                adapter.updateList(new ArrayList<>(list));
             }).show();
     }
 
@@ -341,6 +374,76 @@ public class MainActivity extends AppCompatActivity {
             }).show();
     }
 
+    private void showPlaylistDetails(Playlist playlist) {
+        BottomSheetDialog detailsDialog = new BottomSheetDialog(this, R.style.PlayerBottomSheetDialog);
+        View view = getLayoutInflater().inflate(R.layout.modal_playlist_details, null);
+        detailsDialog.setContentView(view);
+
+        TextView txtName = view.findViewById(R.id.txtPlaylistDetailName);
+        ImageView imgCover = view.findViewById(R.id.imgPlaylistDetailCover);
+        RecyclerView rv = view.findViewById(R.id.rvPlaylistSongs);
+        
+        txtName.setText(playlist.getName());
+        
+        // Lógica de capa: CoverUri > Primeira música > Ícone padrão
+        Object coverSource = android.R.drawable.ic_menu_agenda;
+        if (playlist.getCoverUri() != null) {
+            coverSource = Uri.parse(playlist.getCoverUri());
+        } else if (playlist.getSongCount() > 0) {
+            coverSource = playlist.getSongs().get(0).getAlbumArtUri();
+        }
+        
+        Glide.with(this)
+            .load(coverSource)
+            .placeholder(android.R.drawable.ic_menu_agenda)
+            .into(imgCover);
+
+        rv.setLayoutManager(new LinearLayoutManager(this));
+        SongAdapter detailsAdapter = new SongAdapter(new ArrayList<>(playlist.getSongs()), new SongAdapter.OnSongClickListener() {
+            @Override
+            public void onSongClick(Song song, int position) {
+                currentQueue = new ArrayList<>(playlist.getSongs());
+                currentSongIndex = position;
+                playSong(song);
+                showPlayerModal();
+            }
+        });
+        rv.setAdapter(detailsAdapter);
+
+        view.findViewById(R.id.btnPlayPlaylist).setOnClickListener(v -> {
+            if (!playlist.getSongs().isEmpty()) {
+                currentQueue = new ArrayList<>(playlist.getSongs());
+                currentSongIndex = 0;
+                playSong(currentQueue.get(0));
+                showPlayerModal();
+            }
+        });
+
+        view.findViewById(R.id.btnShufflePlaylist).setOnClickListener(v -> {
+            if (!playlist.getSongs().isEmpty()) {
+                currentQueue = new ArrayList<>(playlist.getSongs());
+                Collections.shuffle(currentQueue);
+                currentSongIndex = 0;
+                isShuffle = true;
+                playSong(currentQueue.get(0));
+                showPlayerModal();
+            }
+        });
+
+        view.findViewById(R.id.btnFilterPlaylist).setOnClickListener(v -> showFilterModal(playlist.getSongs(), detailsAdapter));
+
+        view.findViewById(R.id.btnEditPlaylistCover).setOnClickListener(v -> {
+            currentEditingPlaylist = playlist;
+            currentEditingCoverView = imgCover;
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.setType("image/*");
+            imagePickerLauncher.launch(intent);
+        });
+
+        detailsDialog.show();
+    }
+
     private void showPlayerModal() {
         BottomSheetDialog modal = new BottomSheetDialog(this, R.style.PlayerBottomSheetDialog);
         View view = getLayoutInflater().inflate(R.layout.modal_player, null);
@@ -361,9 +464,15 @@ public class MainActivity extends AppCompatActivity {
         view.findViewById(R.id.modalBtnNext).setOnClickListener(v -> { playNext(); updatePlayerModalUI(mTitle, mArtist, mArt, mPlayPause, mSeekBar, mShuffle, mRepeat); });
         view.findViewById(R.id.modalBtnPrev).setOnClickListener(v -> { playPrevious(); updatePlayerModalUI(mTitle, mArtist, mArt, mPlayPause, mSeekBar, mShuffle, mRepeat); });
         
-        mShuffle.setOnClickListener(v -> { isShuffle = !isShuffle; mShuffle.setColorFilter(isShuffle ? 0xFF1DB954 : 0xFFB3B3B3); });
-        mRepeat.setOnClickListener(v -> { repeatMode = (repeatMode + 1) % 3; mRepeat.setColorFilter(repeatMode > 0 ? 0xFF1DB954 : 0xFFB3B3B3); });
-        btnQueue.setOnClickListener(v -> showAddToPlaylistDialog(songList.get(currentSongIndex)));
+        mShuffle.setOnClickListener(v -> { 
+            isShuffle = !isShuffle; 
+            updatePlayerModalUI(mTitle, mArtist, mArt, mPlayPause, mSeekBar, mShuffle, mRepeat);
+        });
+        mRepeat.setOnClickListener(v -> { 
+            repeatMode = (repeatMode + 1) % 3; 
+            updatePlayerModalUI(mTitle, mArtist, mArt, mPlayPause, mSeekBar, mShuffle, mRepeat);
+        });
+        btnQueue.setOnClickListener(v -> showAddToPlaylistDialog(currentQueue.get(currentSongIndex)));
 
         updateSeekBar = new Runnable() {
             @Override public void run() {
@@ -379,12 +488,18 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void updatePlayerModalUI(TextView t, TextView a, ImageView i, ImageButton pp, SeekBar sb, ImageButton sh, ImageButton re) {
-        Song s = songList.get(currentSongIndex);
+        Song s = currentQueue.get(currentSongIndex);
         t.setText(s.getTitle()); a.setText(s.getArtist());
         Glide.with(this).load(s.getAlbumArtUri()).placeholder(android.R.drawable.ic_menu_report_image).into(i);
         pp.setImageResource(mediaPlayer.isPlaying() ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play);
         sb.setMax(mediaPlayer.getDuration());
+        
+        // Update Shuffle Icon
+        sh.setImageResource(android.R.drawable.ic_menu_directions);
         sh.setColorFilter(isShuffle ? 0xFF1DB954 : 0xFFB3B3B3);
+
+        // Update Repeat Icon
+        re.setImageResource(android.R.drawable.ic_popup_sync);
         re.setColorFilter(repeatMode > 0 ? 0xFF1DB954 : 0xFFB3B3B3);
     }
 

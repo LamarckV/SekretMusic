@@ -53,12 +53,18 @@ public class PlaylistAdapter extends RecyclerView.Adapter<PlaylistAdapter.Playli
             holder.txtName.setText(playlist.getName());
             holder.txtCount.setText(playlist.getSongCount() + " músicas");
             
-            if (playlist.getSongCount() > 0) {
-                Glide.with(holder.itemView.getContext())
-                    .load(playlist.getSongs().get(0).getAlbumArtUri())
-                    .placeholder(android.R.drawable.ic_menu_agenda)
-                    .into(holder.imgCover);
+            Object coverSource = android.R.drawable.ic_menu_agenda; // Default placeholder
+            
+            if (playlist.getCoverUri() != null) {
+                coverSource = playlist.getCoverUri();
+            } else if (playlist.getSongCount() > 0) {
+                coverSource = playlist.getSongs().get(0).getAlbumArtUri();
             }
+            
+            Glide.with(holder.itemView.getContext())
+                .load(coverSource)
+                .placeholder(android.R.drawable.ic_menu_agenda)
+                .into(holder.imgCover);
             
             holder.itemView.setOnClickListener(v -> listener.onPlaylistClick(playlist));
         }
