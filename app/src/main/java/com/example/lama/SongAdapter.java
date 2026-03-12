@@ -13,6 +13,7 @@ import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class SongAdapter extends RecyclerView.Adapter<SongAdapter.SongViewHolder> {
@@ -22,6 +23,9 @@ public class SongAdapter extends RecyclerView.Adapter<SongAdapter.SongViewHolder
     private OnSongClickListener listener;
     private boolean isSelectionMode = false;
     private List<Song> selectedSongs = new ArrayList<>();
+    
+    private long playingSongId = -1;
+    private boolean showDragHandle = false;
 
     public interface OnSongClickListener {
         void onSongClick(Song song, int position);
@@ -40,8 +44,31 @@ public class SongAdapter extends RecyclerView.Adapter<SongAdapter.SongViewHolder
         notifyDataSetChanged();
     }
 
+    public void setPlayingSongId(long id) {
+        this.playingSongId = id;
+        notifyDataSetChanged();
+    }
+
+    public void setShowDragHandle(boolean show) {
+        this.showDragHandle = show;
+        notifyDataSetChanged();
+    }
+
     public List<Song> getSelectedSongs() {
         return selectedSongs;
+    }
+
+    public void onItemMove(int fromPosition, int toPosition) {
+        if (fromPosition < toPosition) {
+            for (int i = fromPosition; i < toPosition; i++) {
+                Collections.swap(songList, i, i + 1);
+            }
+        } else {
+            for (int i = fromPosition; i > toPosition; i--) {
+                Collections.swap(songList, i, i - 1);
+            }
+        }
+        notifyItemMoved(fromPosition, toPosition);
     }
 
     @NonNull
@@ -64,11 +91,24 @@ public class SongAdapter extends RecyclerView.Adapter<SongAdapter.SongViewHolder
                 .transition(DrawableTransitionOptions.withCrossFade())
                 .into(holder.imgAlbum);
 
+        // Visual feedback for selection mode
         if (isSelectionMode) {
             holder.itemView.setBackgroundColor(selectedSongs.contains(song) ? 0x401DB954 : 0x00000000);
         } else {
             holder.itemView.setBackgroundColor(0x00000000);
         }
+
+        // Real-time playing status indicator
+        if (song.getId() == playingSongId) {
+            holder.imgPlayingStatus.setVisibility(View.VISIBLE);
+            holder.txtTitle.setTextColor(0xFF1DB954); // Green title for current song
+        } else {
+            holder.imgPlayingStatus.setVisibility(View.GONE);
+            holder.txtTitle.setTextColor(0xFFFFFFFF);
+        }
+
+        // Show drag handle in queue modal
+        holder.imgDragHandle.setVisibility(showDragHandle ? View.VISIBLE : View.GONE);
 
         holder.itemView.setOnClickListener(v -> {
             if (isSelectionMode) {
@@ -112,13 +152,15 @@ public class SongAdapter extends RecyclerView.Adapter<SongAdapter.SongViewHolder
 
     static class SongViewHolder extends RecyclerView.ViewHolder {
         TextView txtTitle, txtArtist;
-        ImageView imgAlbum;
+        ImageView imgAlbum, imgPlayingStatus, imgDragHandle;
 
         public SongViewHolder(@NonNull View itemView) {
             super(itemView);
             txtTitle = itemView.findViewById(R.id.txtSongTitle);
             txtArtist = itemView.findViewById(R.id.txtSongArtist);
             imgAlbum = itemView.findViewById(R.id.imgSongAlbum);
+            imgPlayingStatus = itemView.findViewById(R.id.imgPlayingStatus);
+            imgDragHandle = itemView.findViewById(R.id.imgDragHandle);
         }
     }
 }
